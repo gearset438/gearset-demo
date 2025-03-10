@@ -1,0 +1,1 @@
+Auto delete feature is on in gearset. Means the feature branhc will delted after the deployment compltion. Now we will check that can we restore the delete feature branch fro pull request.
