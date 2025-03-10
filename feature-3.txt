@@ -1,0 +1,2 @@
+Feature 3 testing
+Auto delete featuer is off so it will not delete the feateur branch after conpleting the deployment. We will delete it mannually and after that we will check can we resoted it from Pull request.
