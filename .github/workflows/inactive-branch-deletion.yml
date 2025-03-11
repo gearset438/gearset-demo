@@ -1,0 +1,37 @@
+name: Delete Inactive Feature Branches
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  delete-inactive-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install jq -y
+
+      - name: Get inactive feature branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the list of feature branches excluding protected ones
+          branches=$(gh api repos/${{ github.repository }}/branches --paginate | jq -r '.[].name' | grep -E "^feature/" | grep -vE "^(main|dev|qa)$")
+          
+          for branch in $branches; do
+            last_commit_date=$(gh api repos/${{ github.repository }}/commits/$branch | jq -r '.commit.committer.date')
+            branch_age=$(( ( $(date -u +%s) - $(date -u -d "$last_commit_date" +%s) ) / 86400 ))
+            
+            # Retention policy: Delete if inactive for more than 30 days
+            if [ "$branch_age" -ge 30 ]; then
+              echo "Deleting inactive feature branch: $branch"
+              gh api --method DELETE repos/${{ github.repository }}/git/refs/heads/$branch
+            fi
+          done
+        
+      - name: Cleanup
+        run: echo "Inactive feature branches deleted successfully!"
