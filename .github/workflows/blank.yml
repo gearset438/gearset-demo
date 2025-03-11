@@ -1,0 +1,36 @@
+name: Delete Old Branches
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  delete-old-branches:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get install jq -y
+
+      - name: Get branches older than 1 day
+        env:
+          GITHUB_TOKEN: ${{ secrets.SECRET_GITHUB_TOKEN }}
+        run: |
+          # Get the list of branches excluding protected ones
+          branches=$(gh api repos/${{ github.repository }}/branches --paginate | jq -r '.[].name' | grep -vE "^(main|dev|qa)$")
+          
+          for branch in $branches; do
+            last_commit_date=$(gh api repos/${{ github.repository }}/commits/$branch | jq -r '.commit.committer.date')
+            branch_age=$(( ( $(date -u +%s) - $(date -u -d "$last_commit_date" +%s) ) / 86400 ))
+            
+            if [ "$branch_age" -ge 1 ]; then
+              echo "Deleting branch: $branch"
+              gh api --method DELETE repos/${{ github.repository }}/git/refs/heads/$branch
+            fi
+          done
+        
+      - name: Cleanup
+        run: echo "Old branches deleted successfully!"
