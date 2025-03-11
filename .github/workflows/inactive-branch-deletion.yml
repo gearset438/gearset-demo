@@ -22,14 +22,23 @@ jobs:
           # Get the list of feature branches excluding protected ones
           branches=$(gh api repos/${{ github.repository }}/branches --paginate | jq -r '.[].name' | grep -E "^feature/" | grep -vE "^(main|dev|qa)$")
           
+          echo "Retrieved branches: $branches"
+          
           for branch in $branches; do
-            last_commit_date=$(gh api repos/${{ github.repository }}/commits/$branch | jq -r '.commit.committer.date')
+            last_commit_date=$(gh api repos/${{ github.repository }}/commits/$branch | jq -r '.commit.committer.date' 2>/dev/null)
+            
+            if [ -z "$last_commit_date" ]; then
+              echo "Skipping branch $branch: Unable to retrieve last commit date."
+              continue
+            fi
+            
+            echo "Branch: $branch | Last commit date: $last_commit_date"
             branch_age=$(( ( $(date -u +%s) - $(date -u -d "$last_commit_date" +%s) ) / 86400 ))
             
             # Retention policy: Delete if inactive for more than 30 days
             if [ "$branch_age" -ge 30 ]; then
               echo "Deleting inactive feature branch: $branch"
-              gh api --method DELETE repos/${{ github.repository }}/git/refs/heads/$branch
+              gh api --method DELETE repos/${{ github.repository }}/git/refs/heads/$branch || echo "Failed to delete $branch"
             fi
           done
         
